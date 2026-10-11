@@ -62,3 +62,9 @@ node scripts/test_app.js      # 160 项断言，全绿时打印「全部检查�
 ## 更新日志
 
 见 [`output/更新日志.md`](output/更新日志.md)，或在网页里：首页 → 关于本网站 → 版本号。
+
+## License
+
+[MIT](LICENSE) © 2026 Link_MO
+
+代码可自由使用、修改、分发。题目内容整理自公开复习资料，非官方答案。
