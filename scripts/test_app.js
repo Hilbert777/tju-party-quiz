@@ -497,6 +497,7 @@ console.log('\n=== 十二、关于 / 更新日志 ===');
   ok(ah.includes('Link_MO'), '鸣谢署名 Link_MO');
   ok(ah.includes('doki') && ah.includes('宝宝巴豆') && ah.includes('爱读报的坚果'),
     '鸣谢含三位测试者');
+  ok(ah.includes('Wilson') && ah.includes('DeepSeek V4.1 Flash'), '鸣谢含协作方 Wilson 与底层模型');
   ok(ah.includes('579') && ah.includes('87'), '数据来源写明题库与卡片规模');
   ok(ah.includes('不是官方答案'), '写明「不是官方答案」的免责说明');
   ok(!/__VER__|__LOG__/.test(ah), '关于页无未替换占位符');
@@ -508,9 +509,9 @@ console.log('\n=== 十二、关于 / 更新日志 ===');
   lg.ctx.vlog();
   const lh = lg.els['app'].innerHTML;
   ok(lh.includes('更新日志') && lh.includes('←'), '日志页有标题与返回按钮');
-  ok((lh.match(/<h3>/g) || []).length === 7, '日志含 7 个版本（1.0 → 4.0）',
+  ok((lh.match(/<h3>/g) || []).length === 8, '日志含 8 个版本（1.0 → 4.1）',
     (lh.match(/<h3>/g) || []).length);
-  ok(lh.includes('4.0 — 2026-10-11') && lh.includes('1.0 — 2026-10-08'), '日志首尾版本都在');
+  ok(lh.includes('4.1 — 2026-10-12') && lh.includes('1.0 — 2026-10-08'), '日志首尾版本都在');
   ok(lh.includes('<table>'), '日志里的 markdown 表格已转成 HTML 表格');
   ok(!/\*\*/.test(lh), '日志无残留 markdown 粗体记号');
   ok(!/\|\s*-{3,}/.test(lh), '日志无残留 markdown 表格分隔行');

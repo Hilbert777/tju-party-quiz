@@ -353,6 +353,7 @@ function about(){
 
    '<div class="card"><h3>鸣谢</h3>'+
    '<p>作者　<b>「林克」26材料｜Link_MO</b></p>'+
+   '<p>协作　<b>Wilson</b>（AI 助手 · DeepSeek V4.1 Flash）</p>'+
    '<p style="margin-bottom:4px">参与测试</p>'+
    '<ul class="cred">'+
    '<li>「都大」26社科｜doki</li>'+

@@ -68,3 +68,7 @@ node scripts/test_app.js      # 160 项断言，全绿时打印「全部检查�
 [MIT](LICENSE) © 2026 Link_MO
 
 代码可自由使用、修改、分发。题目内容整理自公开复习资料，非官方答案。
+
+---
+
+鸣谢：**Wilson**（AI 助手 · DeepSeek V4.1 Flash）参与整理与开发；以及 26 天大 JiaYuan 群参与测试的群友。
