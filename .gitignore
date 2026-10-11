@@ -1,0 +1,15 @@
+# ---- 本地工作记录：含个人日志与部署配置，绝不入库 ----
+.workbuddy/
+*.genie
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+
+# ---- 生成产物：根目录 index.html 才是要托管的那一份 ----
+output/入党申请人复习.html
+
+# ---- 系统杂物 ----
+.DS_Store
+Thumbs.db
+*.bak
