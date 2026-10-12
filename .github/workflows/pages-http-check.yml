@@ -1,0 +1,53 @@
+name: Pages Gzip and cache verification
+
+on:
+  workflow_run:
+    workflows: [pages-build-deployment]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: 'Optional deployed URL; leave blank to read this repository Pages URL'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pages: read
+
+jobs:
+  verify:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the deployed revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Verify compression, validators and release content
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SITE_URL: ${{ inputs.site_url }}
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            SITE_URL="$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.html_url')"
+          fi
+          # Pages/CDN propagation can briefly serve the preceding release.
+          for attempt in 1 2 3; do
+            if python3 scripts/verify_pages_http.py "$SITE_URL" --expected-file index.html --output "pages-http-report-$attempt.json"; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep 30
+            fi
+          done
+          exit 1
+
+      - name: Save HTTP verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pages-http-report
+          path: pages-http-report-*.json
+          if-no-files-found: warn

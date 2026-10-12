@@ -509,9 +509,12 @@ console.log('\n=== 十二、关于 / 更新日志 ===');
   lg.ctx.vlog();
   const lh = lg.els['app'].innerHTML;
   ok(lh.includes('更新日志') && lh.includes('←'), '日志页有标题与返回按钮');
-  ok((lh.match(/<h3>/g) || []).length === 9, '日志含 9 个版本（1.0 → 4.2）',
-    (lh.match(/<h3>/g) || []).length);
-  ok(lh.includes('4.2 — 2026-10-12') && lh.includes('1.0 — 2026-10-08'), '日志首尾版本都在');
+  const logMd = fs.readFileSync(path.join(__dirname, '..', 'output', '更新日志.md'), 'utf8');
+  const expectedHeadings = [...logMd.matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
+  const renderedHeadings = [...lh.matchAll(/<h3>(.*?)<\/h3>/g)].map(m => m[1]);
+  ok(JSON.stringify(renderedHeadings) === JSON.stringify(expectedHeadings), '日志版本与源文件一致且顺序正确',
+    renderedHeadings.length);
+  ok(lh.includes(expectedHeadings[0]) && lh.includes(expectedHeadings[expectedHeadings.length - 1]), '日志首尾版本都在');
   ok(lh.includes('<table>'), '日志里的 markdown 表格已转成 HTML 表格');
   ok(!/\*\*/.test(lh), '日志无残留 markdown 粗体记号');
   ok(!/\|\s*-{3,}/.test(lh), '日志无残留 markdown 表格分隔行');
