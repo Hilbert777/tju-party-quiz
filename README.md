@@ -19,7 +19,8 @@
 index.html                    # 成品：完整应用（同时也是 GitHub Pages 的首页）
 scripts/
   gen_app.py                  # 生成器：读题库数据 + 更新日志，产出 index.html
-  test_app.js                 # 测试：在 DOM stub 里真跑页面脚本，共 160 项断言
+  test_app.js                 # 测试：在 DOM stub 里真跑页面脚本，共 159 项断言
+  test_regressions.js         # 筛选、存储并发、异常恢复和无障碍回归检查
 pdf90/                        # 题库数据（生成器的输入）
   merged_bank.json            #   选择题：第 90 期相关 + 往期真题卷
   fill_cards.json             #   填空卡片
@@ -35,7 +36,8 @@ output/
 
 ```bash
 python scripts/gen_app.py     # 产出 index.html 与 output/入党申请人复习.html（同一份内容）
-node scripts/test_app.js      # 160 项断言，全绿时打印「全部检查通过」
+node scripts/test_app.js      # 159 项断言，直接验证首页，全绿时打印「全部检查通过」
+node scripts/test_regressions.js # 功能和稳定性问题的回归检查
 ```
 
 两个脚本都用相对路径定位文件，clone 到任何目录都能跑。
@@ -57,6 +59,7 @@ node scripts/test_app.js      # 160 项断言，全绿时打印「全部检查�
 
 - 内容整理自公开复习资料，**不是官方答案**；如与官方题库有出入，以官方为准。
 - 进度存在浏览器 `localStorage`，不上传任何数据，也没有后端。
+- 同一站点的多个标签页按题目同步进度，已有进度兼容读取；本地保存失败会提示并提供重试。
 - 平台对不同账号会随机化题目顺序与选项顺序，因此**建议按选项内容记忆，不要按 A/B/C/D 的位置记**。
 
 ## 更新日志
