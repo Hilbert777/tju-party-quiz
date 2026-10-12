@@ -154,8 +154,13 @@ h1{font-size:22px;margin:6px 0 4px}
 .fgroup{margin-bottom:12px}
 .fgroup .lb{font-size:13px;color:var(--tx2);margin-bottom:7px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-size:14px;color:var(--tx);cursor:pointer}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font:inherit;font-size:14px;color:var(--tx);cursor:pointer}
 .chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+button:focus-visible,[role="button"]:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+.storage-status{max-width:532px;margin:12px auto 0;padding:10px 14px;border:1px solid #f0d9a8;
+border-radius:10px;background:#fff6e8;color:#8a5a00;font-size:13px}
+.storage-status p{margin:0 0 6px}
+.storage-status button{font:inherit;color:var(--blue);background:#fff;border:1px solid var(--blue);border-radius:6px;padding:4px 10px}
 .btn{display:block;width:100%;border:0;border-radius:12px;background:var(--blue);color:#fff;
 font-size:17px;font-weight:600;padding:15px;cursor:pointer;font-family:inherit}
 .btn.ghost{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
@@ -253,8 +258,8 @@ padding:13px 0;font-size:15px;font-family:inherit;color:var(--tx);cursor:pointer
 .cfoot button:active{opacity:.82}
 /* 关于 / 更新日志 */
 .card h3{font-size:16px;margin:0 0 10px}
-.abtlink{display:block;text-align:center;margin-top:22px;font-size:12.5px;
-color:var(--tx2);cursor:pointer}
+.abtlink{display:block;width:100%;text-align:center;margin-top:22px;font:inherit;font-size:12.5px;
+color:var(--tx2);cursor:pointer;background:none;border:0}
 .abtlink b{color:var(--blue)}
 .doc h3{font-size:16px;margin:24px 0 8px;padding-top:18px;border-top:1px solid var(--line)}
 .doc h3:first-child{margin-top:0;padding-top:0;border-top:0}
@@ -278,6 +283,7 @@ border-radius:10px;padding:10px 12px;margin:2px 0 0}
 </style>
 </head>
 <body>
+<div id="storageStatus" class="storage-status" role="status" aria-live="polite" hidden></div>
 <div id="app"></div>
 <script>var BANK=__BANK__;</script>
 <script>var CARDS=__CARDS__;</script>
@@ -289,14 +295,126 @@ var T={0:'单选',1:'多选'};
 // 卡片模式(R/LSR)按卡片下标存，卡片没变过，进度不受影响。
 var LS='tju_exam_progress_v3', LSS='tju_exam_setting_v1';
 var LSR='tju_recite_v1', LSRS='tju_recite_setting_v1';
-function ld(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}}
-function sv(o){try{localStorage.setItem(LS,JSON.stringify(o))}catch(e){}}
-function lds(){try{return JSON.parse(localStorage.getItem(LSS))||{}}catch(e){return {}}}
-function svs(o){try{localStorage.setItem(LSS,JSON.stringify(o))}catch(e){}}
-function ldr(){try{var o=JSON.parse(localStorage.getItem(LSR));return o&&o.m&&o.s?o:{m:{},s:{}}}catch(e){return {m:{},s:{}}}}
-function svr(o){try{localStorage.setItem(LSR,JSON.stringify(o))}catch(e){}}
-function ldrs(){try{return JSON.parse(localStorage.getItem(LSRS))||{}}catch(e){return {}}}
-function svrs(o){try{localStorage.setItem(LSRS,JSON.stringify(o))}catch(e){}}
+var pendingWrites={}, damagedStore={}, storeRaw={}, storeReadFailed=false, storeInvalid=false;
+function storeStatus(){
+  var el=document.getElementById('storageStatus'), messages=[];
+  if(storeReadFailed) messages.push('无法读取本地进度，请允许浏览器保存本地数据后重试。');
+  if(Object.keys(pendingWrites).length) messages.push('本地保存失败，部分进度或设置尚未保存。重试成功前请勿关闭或刷新页面。');
+  if(storeInvalid) messages.push('检测到异常的本地记录，已保留原始数据并忽略无效条目。');
+  el.hidden=!messages.length;
+  el.innerHTML=messages.map(function(s){return '<p>'+s+'</p>'}).join('')+
+    (storeReadFailed||Object.keys(pendingWrites).length?'<button type="button" onclick="retrySaves()">重试保存</button>':'');
+}
+function badStore(key){
+  if(storeRaw[key]!=null){damagedStore[key]=storeRaw[key];storeInvalid=true;storeStatus()}
+}
+function readStore(key){
+  var raw;
+  try{raw=Object.prototype.hasOwnProperty.call(pendingWrites,key)?pendingWrites[key]:localStorage.getItem(key)}
+  catch(e){storeReadFailed=true;storeStatus();return null}
+  storeRaw[key]=raw;
+  if(raw===null) return null;
+  try{return JSON.parse(raw)}catch(e){badStore(key);return null}
+}
+function writeStore(key,value){
+  var raw=JSON.stringify(value);pendingWrites[key]=raw;
+  try{
+    if(Object.prototype.hasOwnProperty.call(damagedStore,key)){
+      var backup=key+'_recovery_'+Date.now();
+      while(localStorage.getItem(backup)!==null) backup+='x';
+      localStorage.setItem(backup,damagedStore[key]);delete damagedStore[key];
+    }
+    localStorage.setItem(key,raw);delete pendingWrites[key];storeStatus();return true;
+  }catch(e){storeStatus();return false}
+}
+function isObject(o){return o!==null&&typeof o==='object'&&!Array.isArray(o)}
+function validIndex(k,n){return /^(0|[1-9][0-9]*)$/.test(k)&&+k<n}
+function validProgress(p){
+  return isObject(p)&&typeof p.p==='string'&&/^[A-D]*$/.test(p.p)&&p.p.length<=4&&
+    p.p.split('').every(function(c,i){return p.p.indexOf(c)===i})&&typeof p.ok==='boolean'&&p.seen===1;
+}
+function cleanExam(o,key){
+  var out={};
+  if(!isObject(o)){badStore(key);return out}
+  Object.keys(o).forEach(function(k){
+    if(validIndex(k,BANK.length)&&validProgress(o[k])) out[k]={p:o[k].p,ok:o[k].ok,seen:1};
+    else badStore(key);
+  });return out;
+}
+function cleanFlags(o,key){
+  var out={};
+  if(!isObject(o)){badStore(key);return out}
+  Object.keys(o).forEach(function(k){
+    if(validIndex(k,CARDS.length)&&(o[k]===0||o[k]===1||typeof o[k]==='boolean')){if(o[k])out[k]=1}
+    else badStore(key);
+  });return out;
+}
+function cleanCards(o,key){
+  if(!isObject(o)){badStore(key);return {m:{},s:{}}}
+  return {m:cleanFlags(o.m,key),s:cleanFlags(o.s,key)};
+}
+// 单题/单卡片字段是权威记录；原整对象键继续保留，兼容已有进度。
+// 不同标签页写不同键，不会因整份快照的读写竞争丢失其他题目。
+function ld(){
+  var out=cleanExam(readStore(LS),LS);
+  for(var i=0;i<BANK.length;i++){
+    var key=LS+'.'+i,p=readStore(key);
+    if(p===null){if(storeRaw[key]!=null)badStore(key);continue}
+    if(validProgress(p)) out[i]=p;else badStore(key);
+  }return out;
+}
+function sv(o,idx){
+  if(idx===undefined)return writeStore(LS,o);
+  writeStore(LS+'.'+idx,o[idx]);
+  var latest=cleanExam(readStore(LS),LS);
+  if(storeReadFailed){storeStatus();return false} // 无法读取时不能覆盖尚未读到的旧快照。
+  latest[idx]=o[idx];
+  prog=Object.assign({},o,latest);return writeStore(LS,prog);
+}
+function ldr(){
+  var out=cleanCards(readStore(LSR),LSR);
+  ['m','s'].forEach(function(section){
+    for(var i=0;i<CARDS.length;i++){
+      var key=LSR+'.'+section+'.'+i,v=readStore(key);
+      if(v===null){if(storeRaw[key]!=null)badStore(key);continue}
+      if(v===1||v===true) out[section][i]=1;
+      else if(v===0||v===false) delete out[section][i];else badStore(key);
+    }
+  });return out;
+}
+function svr(o,section,idx){
+  if(idx===undefined)return writeStore(LSR,o);
+  var value=o[section][idx]?1:0;writeStore(LSR+'.'+section+'.'+idx,value);
+  var latest=cleanCards(readStore(LSR),LSR);
+  if(storeReadFailed){storeStatus();return false}
+  rprog={m:Object.assign({},o.m,latest.m),s:Object.assign({},o.s,latest.s)};
+  if(value)rprog[section][idx]=1;else delete rprog[section][idx];
+  return writeStore(LSR,rprog);
+}
+function cleanSettings(o,key,recite){
+  var out={}, allowed=recite?{scope:['n90','all'],shuffle:[0,1],onlyMark:[0,1]}:
+    {scope:['all','n90','vol','party'],type:['all','0','1','2'],state:['all','todo','wrong'],shuffle:[0,1],shuffleOpt:[0,1],confirmSingle:[0,1]};
+  if(!isObject(o)){badStore(key);return out}
+  Object.keys(o).forEach(function(k){
+    if(Object.prototype.hasOwnProperty.call(allowed,k)&&(typeof o[k]==='string'||typeof o[k]==='number')&&
+       allowed[k].some(function(v){return String(v)===String(o[k])}))out[k]=typeof allowed[k][0]==='number'?+o[k]:String(o[k]);else badStore(key);
+  });return out;
+}
+function lds(){return cleanSettings(readStore(LSS),LSS,false)}
+function svs(o){return writeStore(LSS,o)}
+function ldrs(){return cleanSettings(readStore(LSRS),LSRS,true)}
+function svrs(o){return writeStore(LSRS,o)}
+function retrySaves(){
+  try{localStorage.getItem(LS);storeReadFailed=false}catch(e){storeReadFailed=true}
+  Object.keys(pendingWrites).filter(function(k){return k!==LS&&k!==LSR}).forEach(function(k){writeStore(k,JSON.parse(pendingWrites[k]))});
+  var latest=ld(),cards=ldr();
+  if(!storeReadFailed){
+    prog=Object.assign({},prog,latest);rprog=cards;
+    if(pendingWrites[LS])writeStore(LS,prog);
+    if(pendingWrites[LSR])writeStore(LSR,rprog);
+  }
+  storeStatus();
+}
 var app=document.getElementById('app');
 function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
 /* 选项打乱：返回 0..n-1 的随机排列（Fisher-Yates） */
@@ -319,7 +437,7 @@ function home(){
      '<span class="ic">✍️</span><span class="tx"><b>做题测验</b>'+
      '<em>单选 '+n1+' · 多选 '+n2+' · 判对错</em></span><span class="go">›</span></button>'+
    '<p class="hint">背诵进度：已背 '+st.seen+' / '+sc.all+'　标记 '+st.marked+'</p>'+
-   '<span class="abtlink" onclick="about()">关于本网站 · <b>v__VER__</b></span></div>';
+   '<button type="button" class="abtlink" onclick="about()">关于本网站 · <b>v__VER__</b></button></div>';
 }
 
 /* ==================== 关于本网站 / 更新日志 ==================== */
@@ -401,9 +519,10 @@ function rQueue(){
   return q;
 }
 function rchip(k,v,label){
-  return '<span class="chip'+(String(rset[k])===String(v)?' on':'')+'" onclick="rsetF(\''+k+'\',\''+v+'\')">'+label+'</span>';
+  return '<button type="button" class="chip'+(String(rset[k])===String(v)?' on':'')+'" aria-pressed="'+(String(rset[k])===String(v))+'" onclick="rsetF(\''+k+'\',\''+v+'\')">'+label+'</button>';
 }
-function rsetF(k,v){rset[k]=v;svrs(rset);reciteHome()}
+function focusChip(action){var el=document.querySelector('[onclick="'+action+'"]');if(el&&el.focus)el.focus()}
+function rsetF(k,v){rset[k]=v;svrs(rset);reciteHome();focusChip("rsetF('"+k+"','"+v+"')")}
 
 function reciteHome(){
   var st=rStats(), sc=rScopeCount();
@@ -441,7 +560,7 @@ function reciteRender(){
   app.innerHTML='<div class="wrap"><div class="top"><button class="back" onclick="reciteHome()">←</button>'+
    '<div class="prog">'+now+' / '+total+'</div><div class="tag">'+esc(c.g)+'</div></div>'+
    '<div class="bar"><i style="width:'+(now/total*100)+'%"></i></div>'+
-   '<div class="rcard" id="rcard" onclick="cardTap()"><div class="inner" id="cbody"></div></div>'+
+   '<div class="rcard" id="rcard" role="button" tabindex="0" aria-expanded="false" aria-describedby="chint" onclick="cardTap()"><div class="inner" id="cbody"></div></div>'+
    '<p class="hint" id="chint"></p></div>'+
    '<div class="cfoot"><div class="in">'+
    '<button onclick="cardPrev()">← 上一张</button>'+
@@ -462,11 +581,16 @@ function paintCard(){
   }
   if(R.revealed&&c.note) out+='<div class="rnote">⚠ '+esc(c.note)+'</div>';
   document.getElementById('cbody').innerHTML=out;
+  var card=document.getElementById('rcard');
+  if(card&&card.setAttribute)card.setAttribute('aria-expanded',String(R.revealed));
   var mb=document.getElementById('mkbtn');
-  if(mb){mb.className='mk'+(rprog.m[idx]?' on':'');mb.textContent=rprog.m[idx]?'★':'☆';}
+  if(mb){
+    mb.className='mk'+(rprog.m[idx]?' on':'');mb.textContent=rprog.m[idx]?'★':'☆';
+    if(mb.setAttribute){mb.setAttribute('aria-label',rprog.m[idx]?'取消标记这张卡片':'标记这张卡片');mb.setAttribute('aria-pressed',String(Boolean(rprog.m[idx])))}
+  }
   var h=document.getElementById('chint');
   if(h) h.textContent=R.revealed?'再点一下收起答案、重新背　·　或点下方「下一张」':'点一下卡片，看答案';
-  if(R.revealed){rprog.s[idx]=1;svr(rprog)}
+  if(R.revealed&&!rprog.s[idx]){rprog.s[idx]=1;svr(rprog,'s',idx)}
 }
 
 /* 点卡片 = 翻开 / 收起（可反复重背）；翻页走底部「下一张」 */
@@ -480,7 +604,7 @@ function cardTap(){
 function toggleMark(){
   var idx=R.queue[R.pos];
   if(rprog.m[idx]) delete rprog.m[idx]; else rprog.m[idx]=1;
-  svr(rprog);paintCard();
+  svr(rprog,'m',idx);paintCard();
 }
 function cardNext(){ if(R.pos<R.queue.length-1){R.pos++;reciteRender()} else{reciteFinish()} }
 function cardPrev(){ if(R.pos>0){R.pos--;reciteRender()} }
@@ -573,13 +697,13 @@ function examHome(){
 /* 开关式 chip：「选项乱序」「题目随机」这类布尔设置 */
 function tchip(key,label){
   var on=+setting[key];
-  return '<span class="chip'+(on?' on':'')+'" onclick="togF(\''+key+'\')">'+label+(on?'：开':'：关')+'</span>';
+  return '<button type="button" class="chip'+(on?' on':'')+'" aria-pressed="'+Boolean(on)+'" onclick="togF(\''+key+'\')">'+label+(on?'：开':'：关')+'</button>';
 }
-function togF(k){setting[k]=+setting[k]?0:1;svs(setting);examHome()}
+function togF(k){setting[k]=+setting[k]?0:1;svs(setting);examHome();focusChip("togF('"+k+"')")}
 function chip(key,val,label){
-  return '<span class="chip'+(String(setting[key])===String(val)?' on':'')+'" onclick="setF(\''+key+'\',\''+val+'\')">'+label+'</span>';
+  return '<button type="button" class="chip'+(String(setting[key])===String(val)?' on':'')+'" aria-pressed="'+(String(setting[key])===String(val))+'" onclick="setF(\''+key+'\',\''+val+'\')">'+label+'</button>';
 }
-function setF(k,v){setting[k]=v;svs(setting);examHome()}
+function setF(k,v){setting[k]=v;svs(setting);examHome();focusChip("setF('"+k+"','"+v+"')")}
 
 function start(){
   S.mode='exam';S.fromPool=false;
@@ -589,17 +713,19 @@ function start(){
 }
 function resume(){
   S.mode='exam';S.fromPool=false;
-  var q=[];
-  for(var i=0;i<BANK.length;i++) if(!prog[i]) q.push(i);
-  if(!q.length){q=buildQueue()}
+  var q=buildQueue();
+  if(setting.state==='all'){
+    var todo=q.filter(function(i){return !prog[i]});if(todo.length)q=todo;
+  }
   S.queue=q;S.pos=0;render();
 }
 
 function render(){
   var it=BANK[S.queue[S.pos]];
   S.picked=[];S.done=false;
+  if(!it){app.innerHTML='<div class="wrap"><div class="empty">当前条件下没有题目，已完成或没有符合筛选的题目。</div><button class="btn ghost" onclick="examHome()">返回</button></div>';return}
   S.perm=(+setting.shuffleOpt)?shuffled(4):[0,1,2,3];   // 选项乱序，可在首页关掉
-  var now=S.pos+1, total=S.queue.length, head, barw;
+  var now=S.pos+1+(S.mode==='reinforce'?R2.offset:0), total=S.queue.length, head, barw;
   if(S.mode==='reinforce'){
     head='<div class="prog">第 '+now+' 题</div>';
     var den=R2.mastered+R2.pool.length;
@@ -693,7 +819,7 @@ function judge(){
   var pickDisp=S.picked.map(function(d){return 'ABCD'[d]}).sort().join('');       // 展示：与屏幕选项同一套字母
   var ok=(pick===it.a.split('').sort().join(''));
   S.done=true;
-  prog[idx]={p:pick,ok:ok,seen:1};sv(prog);
+  prog[idx]={p:pick,ok:ok,seen:1};sv(prog,idx);
 
   var extra='';
   if(S.mode==='reinforce'){
@@ -701,7 +827,7 @@ function judge(){
     var inPool=R2.pool.indexOf(idx);
     if(inPool>=0&&ok){                      // 答对 → 从错题池彻底移除
       R2.pool.splice(inPool,1);R2.mastered++;
-      extra='<br><span style="font-size:13px;color:#1e7d34">✓ 这题已攻克，不会再出现</span>';
+      extra='<br><span style="font-size:13px;color:#1e7d34">✓ 这题已攻克，已移出错题池</span>';
     }else if(inPool>=0){
       extra='<br><span style="font-size:13px;color:#c62828">✗ 还在错题池里，稍后会再来一次</span>';
     }else if(!ok){                           // 普通题做错 → 直接进池
@@ -738,7 +864,7 @@ function finish(){
    强化题答对 → 从错题池永久移除；答错 → 留在池里，稍后再来。
    普通题答错 → 也进池。池子清空即结束。
 */
-var R2={base:[],pool:[],norm:[],np:0,since:0,gap:3,mastered:0,total:0};
+var R2={base:[],pool:[],norm:[],np:0,since:0,gap:3,mastered:0,total:0,offset:0};
 
 function rStart(){
   S.mode='exam';
@@ -754,7 +880,7 @@ function rStart(){
     return;
   }
   R2.norm=shuffArr(R2.base);R2.np=0;
-  R2.since=R2.gap;R2.mastered=0;R2.total=0;
+  R2.since=R2.gap;R2.mastered=0;R2.total=0;R2.offset=0;
   S.mode='reinforce';S.queue=[];S.pos=-1;S.fromPool=false;
   R2Step();
 }
@@ -772,7 +898,10 @@ function R2Step(){
     R2.since++;
     S.fromPool=false;
   }
-  S.queue.push(idx);S.pos=S.queue.length-1;
+  S.queue.push(idx);
+  // 只保留最近 100 题供回看，题号用 offset 保持连续，避免无限模式积累历史。
+  if(S.queue.length>100){S.queue.shift();R2.offset++}
+  S.pos=S.queue.length-1;
   render();
 }
 
@@ -789,17 +918,28 @@ function R2Finish(){
 function exitReinforce(){
   S.mode='exam';
   app.innerHTML='<div class="wrap"><h1>退出强化？</h1>'+
-   '<p class="sub">错题池还剩 '+R2.pool.length+' 道。已攻克的题不会退回，进度已保存。</p>'+
+   '<p class="sub">错题池还剩 '+R2.pool.length+' 道。已攻克的题已移出错题池。'+
+     (Object.keys(pendingWrites).length?'部分进度尚未保存，请先重试保存。':'进度已保存。')+'</p>'+
    '<button class="btn" style="margin-bottom:10px" onclick="rStart()">继续强化</button>'+
    '<button class="btn ghost" onclick="examHome()">回测验首页</button></div>';
 }
 
 document.addEventListener('keydown',function(e){
   if(!document.getElementById('rcard'))return;
-  if(e.key===' '){e.preventDefault();cardTap()}
+  if(e.target&&(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)||e.target.isContentEditable))return;
+  if(e.target&&/^(BUTTON|A)$/.test(e.target.tagName)&&(e.key===' '||e.key==='Enter'))return;
+  if(e.key===' '||(e.key==='Enter'&&e.target&&e.target.id==='rcard')){e.preventDefault();cardTap()}
   else if(e.key==='ArrowRight'){e.preventDefault();cardNext()}
   else if(e.key==='ArrowLeft'){e.preventDefault();cardPrev()}
   else if(e.key==='m'||e.key==='M'){e.preventDefault();toggleMark()}
+  var card=document.getElementById('rcard');
+  if(card&&card.focus&&e.target&&e.target.id==='rcard')card.focus();
+});
+if(typeof window!=='undefined')window.addEventListener('storage',function(e){
+  if(e.key===null||e.key===LS||e.key.indexOf(LS+'.')===0)prog=ld();
+  if(e.key===null||e.key===LSR||e.key.indexOf(LSR+'.')===0){
+    rprog=ldr();if(document.getElementById('rcard'))paintCard();
+  }
 });
 
 home();

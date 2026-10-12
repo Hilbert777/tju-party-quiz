@@ -1,7 +1,7 @@
 // 用 DOM stub 真实执行页面脚本，验证首页、卡片背诵、做题测验、错题强化
 const fs = require('fs'), vm = require('vm'), path = require('path');
 // 相对脚本位置定位产物，换机器/换目录名都能跑
-const FILE = path.join(__dirname, '..', 'output', '入党申请人复习.html');
+const FILE = path.join(__dirname, '..', 'index.html');
 const html = fs.readFileSync(FILE, 'utf8');
 
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
@@ -509,9 +509,9 @@ console.log('\n=== 十二、关于 / 更新日志 ===');
   lg.ctx.vlog();
   const lh = lg.els['app'].innerHTML;
   ok(lh.includes('更新日志') && lh.includes('←'), '日志页有标题与返回按钮');
-  ok((lh.match(/<h3>/g) || []).length === 8, '日志含 8 个版本（1.0 → 4.1）',
+  ok((lh.match(/<h3>/g) || []).length === 9, '日志含 9 个版本（1.0 → 4.2）',
     (lh.match(/<h3>/g) || []).length);
-  ok(lh.includes('4.1 — 2026-10-12') && lh.includes('1.0 — 2026-10-08'), '日志首尾版本都在');
+  ok(lh.includes('4.2 — 2026-10-12') && lh.includes('1.0 — 2026-10-08'), '日志首尾版本都在');
   ok(lh.includes('<table>'), '日志里的 markdown 表格已转成 HTML 表格');
   ok(!/\*\*/.test(lh), '日志无残留 markdown 粗体记号');
   ok(!/\|\s*-{3,}/.test(lh), '日志无残留 markdown 表格分隔行');
